@@ -1,188 +1,111 @@
 package main
 
 import (
-	// "fmt"
-	// openai "github.com/sashabaranov/go-openai"
-
-	"errors"
 	"fmt"
-	"io"
+	"math/rand"
+	"os"
+	"os/exec"
+	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
-	// "log"
-	"net/http"
-
-	// "github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-
-	"bytes"
-	"os"
-	"os/exec"
-	// "sync"
 )
 
+type Recorder struct {
+	cmd     *exec.Cmd
+	outFile string
+}
+
 var (
-	recordingCmd *exec.Cmd
-	outputFile   string
+	recorders = make(map[int]*Recorder)
+	mutex     = &sync.Mutex{}
 )
 
 func main() {
-	_, err := GetOpenAIApiKey()
-	if err != nil {
-		fmt.Println("Error loading .env file:", err)
-		return
-	}
-
 	r := gin.Default()
-
-	// corsConfig := cors.DefaultConfig()
-	// corsConfig.AllowOrigins = []string{"https://example.com", "http://localhost:3000"}
-	// corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
-	// corsConfig.AllowHeaders = []string{"Content-Type", "Authorization"}
-	// r.Use(cors.New(corsConfig))
-
-	// r.POST("/upload", handleAudioUpload)
 
 	r.POST("/audio/start", startRecording)
 	r.POST("/audio/stop", stopRecording)
+
 	r.Run(":5757")
 }
 
 func startRecording(c *gin.Context) {
-	// Generate a unique filename based on the current timestamp
-	outputFile = fmt.Sprintf("recording_%d.wav", time.Now().Unix())
+	// Generate a unique filename using timestamp and a random number
+	timestamp := time.Now().UnixNano()
+	randomPart := rand.Intn(10000)
+	outFile := fmt.Sprintf("recording_%d_%d.wav", timestamp, randomPart)
 
-	// Prepare the command to execute pw-record
-	recordingCmd = exec.Command("pw-record", "--channel-map", "mono", "--rate", "44000", "-P", "{ stream.capture.sink=true }", "--volume", "60.0", outputFile)
-
-	// Set up pipes for stdout and stderr
-	recordingCmd.Stdout = os.Stdout
-	recordingCmd.Stderr = os.Stderr
-
-	// Start the recording process
-	err := recordingCmd.Start()
+	cmd := exec.Command("pw-record", "--channel-map", "mono", "--rate", "44000", "-P", "{ stream.capture.sink=true }", "--volume", "60.0", outFile)
+	err := cmd.Start()
 	if err != nil {
-		fmt.Printf("failed to start recording: %v\n", err)
+		c.JSON(500, gin.H{"error": "Failed to start recording"})
+		return
 	}
 
-	fmt.Printf("Recording started. Output file: %s\n", outputFile)
+	pid := cmd.Process.Pid
+
+	mutex.Lock()
+	recorders[pid] = &Recorder{cmd: cmd, outFile: outFile}
+	mutex.Unlock()
+
+	c.JSON(200, gin.H{"id": pid, "message": "Recording started", "file": outFile})
 }
 
 func stopRecording(c *gin.Context) {
-	if recordingCmd == nil || recordingCmd.Process == nil {
-		fmt.Println("No active recording process")
+	idStr := c.Query("id")
+	if idStr == "" {
+		c.JSON(400, gin.H{"error": "Missing recorder ID"})
 		return
 	}
 
-	// Send a SIGTERM signal to stop the recording process
-	err := recordingCmd.Process.Signal(syscall.SIGTERM)
+	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		fmt.Printf("Failed to send termination signal: %v\n", err)
+		c.JSON(400, gin.H{"error": "Invalid recorder ID"})
 		return
 	}
 
-	// Give the process a moment to clean up
-	time.Sleep(100 * time.Millisecond)
+	mutex.Lock()
+	recorder, exists := recorders[id]
+	mutex.Unlock()
 
-	// Wait for the process to finish with a timeout
-	done := make(chan error, 1)
-	go func() {
-		done <- recordingCmd.Wait()
-	}()
+	if !exists {
+		c.JSON(404, gin.H{"error": "Recorder not found. No recording under this pid?"})
+		return
+	}
 
-	select {
-	case err := <-done:
-		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				if exitErr.ExitCode() == 1 {
-					fmt.Println("Recording process terminated as expected")
-				} else {
-					fmt.Printf("Recording process exited with unexpected error: %v\n", err)
+	// Send SIGINT to the process
+	err = recorder.cmd.Process.Signal(os.Interrupt)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to stop recording"})
+		return
+	}
+
+	// Wait for the process to exit
+	err = recorder.cmd.Wait()
+	if err != nil {
+		// Check if the error is due to a non-zero exit status
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+				// pw-record returns exit code 1 when interrupted
+				if status.ExitStatus() != 1 {
+					c.JSON(500, gin.H{"error": "Unexpected error while stopping recording"})
+					return
 				}
-			} else {
-				fmt.Printf("Error waiting for recording process: %v\n", err)
+				// If it's 1, we consider it a normal termination due to our interrupt
 			}
+		} else {
+			// If it's not an ExitError, it's unexpected
+			c.JSON(500, gin.H{"error": "Unexpected error while waiting for recording to stop"})
+			return
 		}
-	case <-time.After(2 * time.Second):
-		// If the process doesn't exit within 2 seconds, force kill it
-		recordingCmd.Process.Kill()
-		fmt.Println("Recording process did not exit in time, forcefully terminated")
 	}
 
-	fmt.Println("Recording stopped")
+	mutex.Lock()
+	delete(recorders, id)
+	mutex.Unlock()
 
-	// Check if the output file exists
-	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
-		fmt.Printf("Warning: Recording file was not created: %s\n", outputFile)
-	} else {
-		fmt.Printf("Recording saved to: %s\n", outputFile)
-	}
-}
-
-func handleAudioUpload(c *gin.Context) {
-	// Read the audio blob from the request body
-	audioBlob, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-
-	// Create a temporary file to store the audio blob
-	tempFile, err := os.CreateTemp("", "audio-*.wav")
-	if err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	defer os.Remove(tempFile.Name())
-
-	// Write the audio blob to the temporary file
-	_, err = io.Copy(tempFile, bytes.NewReader(audioBlob))
-	if err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-
-	// Call the Unix command with the temporary file path
-	var buffer bytes.Buffer
-	cmd := exec.Command("echo", tempFile.Name())
-	cmd.Stdout = &buffer
-	err = cmd.Run()
-	if err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": buffer.String(),
-	})
-}
-
-func transcribe(file string) {
-
-	// c := openai.NewClient(os.Getenv("OPENAI_KEY"))
-	// ctx := context.Background()
-
-	// req := openai.AudioRequest{
-	// 	Model:    openai.Whisper1,
-	// 	FilePath: os.Args[1],
-	// }
-	// resp, err := c.CreateTranscription(ctx, req)
-	// if err != nil {
-	// 	fmt.Printf("Transcription error: %v\n", err)
-	// 	return
-	// }
-	// fmt.Println(resp.Text)
-}
-
-func GetOpenAIApiKey() (string, error) {
-	// Check if the environment variable exists
-	variable, exists := os.LookupEnv("OPENAI_API_KEY")
-
-	if exists {
-		return variable, nil
-	} else {
-		return "", errors.New("'OPENAI_API_KEY' environment variable is not defined")
-	}
-
+	c.JSON(200, gin.H{"message": "Recording stopped", "file": recorder.outFile})
 }
