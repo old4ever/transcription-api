@@ -59,8 +59,76 @@ func main() {
 
 	r.POST("/audio/start", startRecording)
 	r.POST("/audio/stop", stopRecording)
+	r.POST("/audio/transcribe", transcribeAudio)
+	r.POST("/audio/translate", translateAudio)
 
 	r.Run(":5757")
+}
+
+func transcribeAudio(c *gin.Context) {
+	filename := c.Query("filename")
+	if filename == "" {
+		c.JSON(400, gin.H{"error": "Missing recorder ID"})
+		return
+	}
+
+	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	resp, err := client.CreateTranscription(
+		context.Background(),
+		openai.AudioRequest{
+			Model:    openai.Whisper1,
+			FilePath: filename,
+		},
+	)
+	if err != nil {
+		fmt.Printf("Transcription error: %v\n", err)
+		return
+	}
+
+	// out, err := exec.Command("whisper", filename).Output()
+	// if err != nil {
+	// 	c.JSON(500, gin.H{"error": err})
+	// }
+
+	// c.JSON(200, gin.H{"message": string(out)})
+
+	c.JSON(200, gin.H{"message": resp.Text})
+
+}
+
+func translateAudio(c *gin.Context) {
+	input := c.Query("input")
+	if input == "" {
+		c.JSON(400, gin.H{"error": "Missing input string"})
+		return
+	}
+
+	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	resp, err := client.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model: openai.GPT4o20240513,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    openai.ChatMessageRoleSystem,
+					Content: "You are a language interpreter between Russian and English. Your task is to listen actively to the transcription of a call and render the message completely and accurately.\nIf the transcript is in English, translate it into Russian. If the transcript is in Russian, translate it into English.\nEnsure that you interpret idea for idea and meaning for meaning, rather than word for word.\nTake a step back and think step by step about how to achieve the best result possible as defined in the steps below. You have a lot of freedom to make this work well.\n1. You provide the interpretation in target language.\n2. You only output the translation string.\n3. Do not give warnings or notes; only output the requested string.\n4. Transcript may have more than 1 language. Interpret only the language that the majority of the transcript is in",
+				},
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: input,
+				},
+			},
+		},
+	)
+
+	if err != nil {
+		fmt.Printf("ChatCompletion error: %v\n", err)
+		return
+	}
+
+	// fmt.Println(resp.Choices[0].Message.Content)
+
+	c.JSON(200, gin.H{"message": resp.Choices[0].Message.Content})
 }
 
 func startRecording(c *gin.Context) {
