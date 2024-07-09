@@ -10,7 +10,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/gin-gonic/gin"
+
 )
 
 type Recorder struct {
@@ -24,6 +27,19 @@ var (
 )
 
 func main() {
+	_, exists := os.LookupEnv("OPENAI_KEY")
+
+	if exists {
+	} else {
+
+		// Load the value from the .env file
+		err := godotenv.Load("/home/dmytros/.dotfiles/.env")
+		if err != nil {
+			fmt.Println("Error loading .env file:", err)
+			return
+		}
+	}
+
 	r := gin.Default()
 
 	r.POST("/audio/start", startRecording)
