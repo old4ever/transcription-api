@@ -14,6 +14,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"context"
+	openai "github.com/sashabaranov/go-openai"
 )
 
 type Recorder struct {
