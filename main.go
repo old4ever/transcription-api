@@ -29,6 +29,17 @@ var (
 	mutex     = &sync.Mutex{}
 )
 
+type Language string
+
+const (
+	English Language = "en"
+	Russian Language = "ru"
+)
+
+func (l Language) IsValid() bool {
+	return l == English || l == Russian
+}
+
 func main() {
 	_, exists := os.LookupEnv("OPENAI_KEY")
 
@@ -69,32 +80,44 @@ func main() {
 func transcribeAudio(c *gin.Context) {
 	filename := c.Query("filename")
 	if filename == "" {
-		c.JSON(400, gin.H{"error": "Missing recorder ID"})
+		c.JSON(400, gin.H{"error": "Missing filename"})
 		return
 	}
 
 	client := openai.NewClient(os.Getenv("OPENAI_WHISPER_API_KEY"))
-	resp, err := client.CreateTranscription(
-		context.Background(),
-		openai.AudioRequest{
-			Model:    openai.Whisper1,
-			FilePath: filename,
-		},
-	)
+
+	// Retrieve the optional 'lang' parameter
+	langParam := c.Query("lang")
+	var lang Language
+
+	if langParam != "" {
+		lang = Language(langParam)
+		if !lang.IsValid() {
+			// If the language is invalid, we simply ignore it and do not set it in the request
+			lang = "" // Reset lang to an empty string
+		}
+	}
+
+	// Create the AudioRequest with the optional language parameter
+	audioRequest := openai.AudioRequest{
+		Model: openai.Whisper1,
+		// Model:    "whisper-3",
+		FilePath: filename,
+	}
+
+	// Include the language parameter if it is valid
+	if lang.IsValid() {
+		audioRequest.Language = string(lang) // Assuming Language is the correct field in AudioRequest
+	}
+
+	resp, err := client.CreateTranscription(context.Background(), audioRequest)
 	if err != nil {
 		fmt.Printf("Transcription error: %v\n", err)
+		c.JSON(500, gin.H{"error": "Transcription failed"})
 		return
 	}
 
-	// out, err := exec.Command("whisper", filename).Output()
-	// if err != nil {
-	// 	c.JSON(500, gin.H{"error": err})
-	// }
-
-	// c.JSON(200, gin.H{"message": string(out)})
-
 	c.JSON(200, gin.H{"message": resp.Text})
-
 }
 
 func translateAudio(c *gin.Context) {
