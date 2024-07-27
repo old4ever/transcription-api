@@ -73,7 +73,7 @@ func transcribeAudio(c *gin.Context) {
 		return
 	}
 
-	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	client := openai.NewClient(os.Getenv("OPENAI_WHISPER_API_KEY"))
 	resp, err := client.CreateTranscription(
 		context.Background(),
 		openai.AudioRequest{
@@ -104,7 +104,7 @@ func translateAudio(c *gin.Context) {
 		return
 	}
 
-	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	client := openai.NewClient(os.Getenv("OPENAI_TRANSCRIBE_API_KEY"))
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
