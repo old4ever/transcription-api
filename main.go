@@ -61,6 +61,7 @@ func main() {
 	r.POST("/audio/stop", stopRecording)
 	r.POST("/audio/transcribe", transcribeAudio)
 	r.POST("/audio/translate", translateAudio)
+	// r.POST("/audio/clean", removeTempFiles)
 
 	r.Run(":5757")
 }
@@ -130,6 +131,26 @@ func translateAudio(c *gin.Context) {
 
 	c.JSON(200, gin.H{"message": resp.Choices[0].Message.Content})
 }
+
+// TODO: FIX, it doesn't work
+// Probably because shell doesn't expand '*'
+// func removeTempFiles(c *gin.Context) {
+// 	// cmd1 := exec.Command("killall", "pw-record")
+// 	// err1 := cmd1.Start()
+// 	// if err1 != nil {
+// 	// 	c.JSON(500, gin.H{"error": "Failed to stop recording"})
+// 	// 	return
+// 	// }
+
+// 	cmd := exec.Command("rm", "/home/dmytros/projects/transcription-api/rec*")
+// 	err := cmd.Start()
+// 	if err != nil {
+// 		c.JSON(500, gin.H{"error": "Failed to delete files"})
+// 		return
+// 	}
+
+// 	c.JSON(200, gin.H{"message": "Audio files deleted"})
+// }
 
 func startRecording(c *gin.Context) {
 	// Generate a unique filename using timestamp and a random number
