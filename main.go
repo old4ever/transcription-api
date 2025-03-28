@@ -58,14 +58,6 @@ func main() {
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{"http://localhost:3000"},
-		// AllowMethods:     []string{"POST", "PATCH"},
-		// AllowHeaders:     []string{"Origin"},
-		// ExposeHeaders:    []string{"Content-Length"},
-		// AllowCredentials: true,
-		// AllowOriginFunc: func(origin string) bool {
-		// 	return origin == "https://github.com"
-		// },
-		// MaxAge: 12 * time.Hour,
 	}))
 
 	r.POST("/audio/start", startRecording)
@@ -100,8 +92,7 @@ func transcribeAudio(c *gin.Context) {
 
 	// Create the AudioRequest with the optional language parameter
 	audioRequest := openai.AudioRequest{
-		Model: openai.Whisper1,
-		// Model:    "whisper-3",
+		Model:    openai.Whisper1,
 		FilePath: filename,
 	}
 
@@ -164,14 +155,12 @@ func translateAudio(c *gin.Context) {
 // 	// 	c.JSON(500, gin.H{"error": "Failed to stop recording"})
 // 	// 	return
 // 	// }
-
 // 	cmd := exec.Command("rm", "/home/dmytros/projects/transcription-api/rec*")
 // 	err := cmd.Start()
 // 	if err != nil {
 // 		c.JSON(500, gin.H{"error": "Failed to delete files"})
 // 		return
 // 	}
-
 // 	c.JSON(200, gin.H{"message": "Audio files deleted"})
 // }
 
