@@ -155,7 +155,7 @@ func translateAudio(c *gin.Context) {
 // 	// 	c.JSON(500, gin.H{"error": "Failed to stop recording"})
 // 	// 	return
 // 	// }
-// 	cmd := exec.Command("rm", "/home/dmytros/projects/transcription-api/rec*")
+// 	cmd := exec.Command("rm", "./rec*")
 // 	err := cmd.Start()
 // 	if err != nil {
 // 		c.JSON(500, gin.H{"error": "Failed to delete files"})
