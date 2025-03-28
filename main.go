@@ -47,9 +47,9 @@ func main() {
 	} else {
 
 		// Load the value from the .env file
-		err := godotenv.Load("/home/dmytros/.dotfiles/.env")
+		err := godotenv.Load(".env")
 		if err != nil {
-			fmt.Println("Error loading .env file:", err)
+			fmt.Println("Error loading local .env file:", err)
 			return
 		}
 	}
