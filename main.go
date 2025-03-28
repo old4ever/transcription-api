@@ -41,7 +41,7 @@ func (l Language) IsValid() bool {
 }
 
 func main() {
-	_, exists := os.LookupEnv("OPENAI_KEY")
+	_, exists := os.LookupEnv("OPENAI_WHISPER_API_KEY")
 
 	if exists {
 	} else {
