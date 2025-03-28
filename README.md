@@ -52,25 +52,25 @@ This is a rudimentary Go HTTP server for recording, transcribing, and translatin
         *   Query Parameter:
             *   `id`: The process ID returned by `/audio/start`.
         *   Response:
-          *   ```json
-              {"message": "Recording stopped", "file": "<file_name>"}
-              ```
+            *   ```json
+                {"message": "Recording stopped", "file": "<file_name>"}
+                ```
     *   `POST /audio/transcribe?filename=<filename>&lang=<language_code>`: Transcribes audio using OpenAI Whisper.
         *   Query Parameters:
             *   `filename`: The path to the audio file to transcribe.
             *   `lang` (Optional): The language of the audio (e.g., `en` for English, `ru` for Russian). If the language is not valid, it will be ignored.
         *   Response:
-          *   ```json
-              {"message": "<transcription_text>"}
-              ```
+            *   ```json
+                {"message": "<transcription_text>"}
+                ```
     *   `POST /audio/translate?input=<input_text>&prompt=<prompt_text>`: Translates audio using OpenAI ChatCompletion.
         *   Query Parameters:
             *   `input`: The input text to translate.
             *   `prompt`: The prompt to guide the translation model.
         *   Response:
-          *   ```json
-              {"message": "<translation_text>"}
-              ```
+            *   ```json
+                {"message": "<translation_text>"}
+                ```
 ### CORS Configuration
 
 The server is configured to allow requests from `http://localhost:3000`. You can adjust the `AllowOrigins` configuration in `main.go` if needed.
