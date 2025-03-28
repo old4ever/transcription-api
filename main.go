@@ -118,6 +118,10 @@ func translateAudio(c *gin.Context) {
 		return
 	}
 
+	prompt := c.Query("prompt")
+	// If prompt query param isn't set, it will return an empty string,
+	// which is acceptable as a default "no prompt" behaviour.
+
 	client := openai.NewClient(os.Getenv("OPENAI_TRANSCRIBE_API_KEY"))
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
@@ -126,7 +130,7 @@ func translateAudio(c *gin.Context) {
 			Messages: []openai.ChatCompletionMessage{
 				{
 					Role:    openai.ChatMessageRoleSystem,
-					Content: "You are a language interpreter between Russian and English. Your task is to listen actively to the transcription of a call and render the message completely and accurately.\nIf the transcript is in English, translate it into Russian. If the transcript is in Russian, translate it into English.\nEnsure that you interpret idea for idea and meaning for meaning, rather than word for word.\nTake a step back and think step by step about how to achieve the best result possible as defined in the steps below. You have a lot of freedom to make this work well.\n1. You provide the interpretation in target language.\n2. You only output the translation string.\n3. Do not give warnings or notes; only output the requested string.\n4. Transcript may have more than 1 language. Interpret only the language that the majority of the transcript is in.\nProper names, such as company names, brand names, etc., should not be interpreted into the target language unless they are commonly accepted equivalents. This also applies to street names, and directions included in a street name, such as north, east, etc.",
+					Content: prompt,
 				},
 				{
 					Role:    openai.ChatMessageRoleUser,
