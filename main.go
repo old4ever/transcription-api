@@ -209,7 +209,7 @@ func stopRecording(c *gin.Context) {
 	}
 
 	// Send SIGINT to the process
-	err = recorder.cmd.Process.Signal(os.Interrupt)
+	err = recorder.cmd.Process.Signal(os.Kill)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to stop recording"})
 		return
